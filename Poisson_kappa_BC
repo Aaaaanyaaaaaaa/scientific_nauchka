@@ -1,0 +1,134 @@
+from __future__ import print_function
+from fenics import *
+from mshr import *
+import matplotlib.pyplot as plt
+
+
+# Create mesh and define function space
+mesh = UnitSquareMesh(8, 8)
+
+V = FunctionSpace(mesh, 'P', 1)
+u = TrialFunction(V)
+v = TestFunction(V)
+
+#define kappa
+kappa = Expression('x[0]*x[1]', degree=2)
+
+#define right hand side func
+f = Constant(-6.0)
+
+# Define Dirichlet boundary condition
+u_D = Expression('1 + x[0]*x[0] + 2*x[1]*x[1]', degree=2)
+
+# Define Neumann boundary condition
+g = Expression('23 + x[0]', degree=1)
+
+
+#defining markers for diff parts of. boundurt
+boundary_markers = MeshFunction('size_t',mesh,  mesh.topology().dim()-1, 0)
+
+tol = 1e-10
+
+class BoundaryX0(SubDomain):
+        def inside(self, x, on_boundary):
+            return on_boundary and near(x[0], 0, tol)
+
+class BoundaryX1(SubDomain):
+    def inside(self, x, on_boundary):
+        return on_boundary and near(x[0], 1, tol)
+
+class BoundaryY0(SubDomain):
+    def inside(self, x, on_boundary):
+        return on_boundary and near(x[1], 0, tol)
+
+class BoundaryY1(SubDomain):
+    def inside(self, x, on_boundary):
+        return on_boundary and near(x[1], 1, tol)
+
+# Mark boundaries
+
+bx0 = BoundaryX0()
+bx1 = BoundaryX1()
+by0 = BoundaryY0()
+by1 = BoundaryY1()
+bx0.mark(boundary_markers, 0)
+bx1.mark(boundary_markers, 1)
+by0.mark(boundary_markers, 2)
+by1.mark(boundary_markers, 3)
+
+
+boundary_conditions = {0: {'Dirichlet': u_D},
+                      1: {'Dirichlet': 0},
+                      2: {'Neumann' : g},
+                      3: {'Neumann' : 0}}
+                      
+# Collect Dirichlet conditions
+bcs = []
+for i in boundary_conditions:
+    if 'Dirichlet' in boundary_conditions[i]:
+        bc = DirichletBC(V, boundary_conditions[i]['Dirichlet'],
+                         boundary_markers, i)
+        bcs.append(bc)
+        
+        
+        
+        
+        
+ # to express ints over the boundary parts we must redifine the mesuare ds in terms of boundary markers
+
+ds = Measure('ds', domain=mesh, subdomain_data=boundary_markers)
+
+
+#Collect Neumann integrals
+integrals_N = []
+for i in boundary_conditions:
+    if 'Neumann' in boundary_conditions[i]:
+        if boundary_conditions[i]['Neumann'] != 0:
+            g = boundary_conditions[i]['Neumann']
+            integrals_N.append(g*v*ds(i))
+
+
+F = kappa*dot(grad(u), grad(v))*dx + f*v*dx +sum(integrals_N)
+a, L = lhs(F), rhs(F)
+
+
+# Compute solution
+
+
+
+u = Function(V)
+solve(a == L, u, bcs)
+
+# Plot solution and mesh
+plot(u)
+plot(mesh)
+
+
+# Save solution to file in VTK format
+vtkfile = File('poisson/solution.pvd')
+vtkfile << u
+
+# Compute error in L2 norm
+error_L2 = errornorm(u_D, u, 'L2')
+
+# Compute maximum error at vertices
+# vertex_values_u_D = u_D.compute_vertex_values(mesh)
+vertex_values_u = u.compute_vertex_values(mesh)
+# import numpy as np
+# error_max = np.max(np.abs(vertex_values_u_D - vertex_values_u))
+
+# # Print errors
+# print('error_L2  =', error_L2)
+# print('error_max =', error_max)
+
+# Hold plot
+plt.show()
+
+
+
+
+vertex_values_u 
+
+
+vertex_values_kappa = kappa.compute_vertex_values(mesh)
+vertex_values_kappa
